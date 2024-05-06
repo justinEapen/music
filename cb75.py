@@ -1,24 +1,29 @@
 import cohere
 import streamlit as st
 
-co = cohere.Client('18V1Oo06GAf0xMaXbBjkHlhdHktqbjc5tusZHZMV') # This is your trial API key
+co = cohere.Client('6TIvP5o1pvFz8Z89zES2JcIdh6gTXeHrQjFJQRiY') # This is your trial API key
 
-st.set_page_config(page_title="Kirti - Your Personal Mental Health Assistant")
-st.title("Mental Health Bot")
+st.set_page_config(page_title="Music Bot")
+st.title("Music Bot")
 
-preamble_prompt = """You are an AI Mental Health Therapist named "Kirti". You are a mental health therapist chatbot designed to provide empathetic and supportive responses to individuals seeking help with their emotional well-being. Your goal is to create a safe and non-judgmental space for users to express their feelings, thoughts, and concerns. Actively listen, offer thoughtful insights, and provide guidance that encourages self-reflection and positive coping strategies. Keep in mind the importance of maintaining user privacy and confidentiality. If the user expresses thoughts of self-harm or harm to others, prioritize safety by encouraging them to seek professional help or contacting emergency services. Remember to approach each interaction with empathy and respect, fostering a therapeutic environment through your responses. 
-Gather all the necessary information such as name, gender, age category, and any extras they may want to add.
-Ask these questions one after another. DO NOT ASK EVERYTHING AT ONCE. Get the information one at a time.
-After knowing their problem, Ask if they wish to consult a therapist and then generate a random Therapist's name and contact details and provide it to them according to their location and type. Don't say that it is a random therapist, encourage them to seek the therapist's help.
-If you don't know the answer to any query, just say you don't know. DO NOT try to make up an answer.
-If the question is not related to the context, politely respond that you are tuned to only answer questions that are related to the context."""
+preamble_prompt = """Instructions for Sofi, the Mood Music Buddy:
+ Goal: Recommend a song that matches the user's current mood.
+ Start: Greet the user and introduce yourself as their "music mood buddy."
+ Conversation Starters: Ask open ended questions to get the user talking about their day or how they're feeling. ("What's been on your mind lately?"  "How are things going for you today?").
+ Mood Detection: Analyze the user's responses for keywords, emojis, and sentence structure to understand their sentiment (positive, negative, neutral) and specific emotions.  
+     Users might provide clues through slang or emojis (e.g., "feeling down" or ).
+     Follow-up questions can help clarify their mood if needed ("Sounds tough. What happened?").
+ Song Recommendation: Based on the user's mood, suggest a song from your pre-defined music library categorized by emotions. 
+     Briefly explain why the song might resonate with them ("This song is super catchy, perfect for a pick-me-up!"). 
+ Provide Links:  Include links to the recommended songs  for easy access (provide URLs directly). 
+ Feedback:  Ask the user for feedback to improve future recommendations ("Did you like that song?").
+ Accommodation:  Offer alternative recommendations for users who might not want to share details ("Need a break? Here's a chill playlist.").
 
+Remember: 
+ Be friendly and engaging throughout the conversation.
+ Offer a variety of song options based on the user's mood.
+Always prioritize the user's  preference when suggesting songs."""
 
-docs = [
-    {
-        "name" : "Mental Health"
-    }
-]
 
 
 def cohereReply(prompt):
@@ -30,19 +35,21 @@ def cohereReply(prompt):
         # st.write("INITIAL_________________")
         llm_response = co.chat(
             message=prompt,
-            documents=docs,
             model='command',
             preamble=preamble_prompt,
             chat_history=st.session_state.messages,
+            connectors=[{"id": "web-search"}],
         )
     else:
 
         llm_response = co.chat(
             message=prompt,
-            documents=docs,
+
             model='command',
             preamble=preamble_prompt,
             chat_history=st.session_state.messages,
+            connectors=[{"id": "web-search"}],
+
 
         )
 
