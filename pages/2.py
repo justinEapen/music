@@ -4,7 +4,7 @@ import PyPDF2
 from docx import Document
 
 # Initialize Cohere client
-co = cohere.Client('YOUR_API_KEY')
+co = cohere.Client('GHyObF1CtNtzlgdHzrpdnXVq8lZRjporWOnGWo3Y')
 
 # Function to extract text from PDF
 def extract_text_from_pdf(file):
@@ -45,58 +45,35 @@ def extract_skills_from_resume(resume_text):
   
     return response.generations[0].text.replace("Skills: ", "").split(',')
 
-# Function to match candidate's skills with job requirements and find gaps
-def find_skill_gaps(candidate_skills_ratings, job_role):
-    required_skills = get_required_skills_for_job(job_role)
-    missing_skills = []
-    gaps = {}
-
-    for skill, rating in candidate_skills_ratings.items():
-        if skill in required_skills:
-            if rating < required_skills[skill]:  # If candidate's rating is less than the required level
-                missing_skills.append(skill)
-                gaps[skill] = (rating, required_skills[skill])
-
-    for required_skill, level in required_skills.items():
-        if required_skill not in candidate_skills_ratings:
-            missing_skills.append(required_skill)
-            gaps[required_skill] = (0, level)  # Candidate lacks the skill
-
-    return missing_skills, gaps
-
-# Function to retrieve skills required for a specific job role
-def get_required_skills_for_job(job_role):
-    # This would typically query a job database or use an API to get required skills for job roles.
-    # For demo purposes, we're using hardcoded data.
-    job_skills_data = {
-        'Software Engineer': {
-            'Python': 8,
-            'Data Structures': 7,
-            'Algorithms': 7,
-            'Version Control (Git)': 6,
-            'Databases': 6
-        },
-        'Data Scientist': {
-            'Python': 8,
-            'Machine Learning': 8,
-            'Statistics': 7,
-            'Data Visualization': 7,
-            'SQL': 6
-        },
-        'Product Manager': {
-            'Leadership': 8,
-            'Communication': 7,
-            'Project Management': 7,
-            'Strategic Thinking': 6,
-            'Problem Solving': 7
-        }
-    }
-    return job_skills_data.get(job_role, {})
-
-# Function to recommend personalized courses
-def recommend_courses(missing_skills):
+# Function to extract required skills for the desired job role
+def extract_required_skills(job_role):
     prompt = f"""
-    Recommend online courses for the following skills.
+    Given the job title '{job_role}', list the most relevant skills required for this role.
+
+    Job Role: {job_role}
+    Skills: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=100,
+        temperature=0.7
+    )
+  
+    return response.generations[0].text.replace("Skills: ", "").split(',')
+
+# Function to perform skill gap analysis
+def identify_skill_gaps(user_skills, required_skills):
+    user_skills_set = set(user_skills)
+    required_skills_set = set(required_skills)
+    
+    missing_skills = list(required_skills_set - user_skills_set)
+    return missing_skills
+
+# Function to recommend personalized courses based on missing skills
+def recommend_personalized_courses(missing_skills):
+    prompt = f"""
+    Recommend online courses, workshops, or training programs for the following skills.
 
     Skills: {', '.join(missing_skills)}
     Courses: """
@@ -110,25 +87,8 @@ def recommend_courses(missing_skills):
   
     return response.generations[0].text.replace("Courses: ", "").split(',')
 
-# Function to recommend jobs based on profile
-def recommend_jobs(profile_summary):
-    prompt = f"""
-    Based on the candidate's profile, recommend job titles they should consider.
-
-    Profile: {profile_summary}
-    Recommended Jobs: """
-
-    response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=prompt,
-        max_tokens=100,
-        temperature=0.7
-    )
-  
-    return response.generations[0].text.replace("Recommended Jobs: ", "").split(',')
-
-# Streamlit app
-st.title("💼 Skill Gap Analysis & Job Recommendations")
+# Step 1: Get user's profile, skills, or resume
+st.title("💼 Candidate Profile Evaluator")
 
 # Allow user to upload resume
 resume_upload = st.file_uploader("Upload your resume (PDF or DOCX)", type=['pdf', 'docx'])
@@ -142,66 +102,53 @@ def read_resume(uploaded_file):
             return extract_text_from_docx(uploaded_file)
     return ""
 
-# Step 1: Upload resume or manually input profile and skills
+# If resume is uploaded, extract skills
 if resume_upload:
     resume_text = read_resume(resume_upload)
     if resume_text:
+        # Extract skills from resume using Cohere
         st.session_state['skills_list'] = extract_skills_from_resume(resume_text)
         st.session_state['profile_input'] = "Resume-based profile"
-        st.experimental_rerun()
+        st.rerun()
 
+# If resume is not uploaded or skills are still empty, show manual profile input form
 if not st.session_state.get('profile_input') and not st.session_state.get('skills_list'):
     form_profile = st.form(key="user_profile")
     with form_profile:
-        profile_input = st.text_input("Briefly describe your profile (e.g., Software Engineer with 3 years of experience)")
-        job_role = st.selectbox("Select your desired job role", ["Software Engineer", "Data Scientist", "Product Manager"])
-        skills_input = st.text_input("List your skills (comma-separated)")
+        profile_input = st.text_input("Briefly describe your profile (e.g., Software Engineer with 3 years of experience)", key="profile_input_input")
+        skills_input = st.text_input("List your skills (comma-separated)", key="skills_input")
+        job_role = st.text_input("Desired job role (e.g., Data Scientist, Software Developer)", key="job_role")
+
         submit_profile = form_profile.form_submit_button("Submit Profile and Skills")
 
     if submit_profile:
-        if profile_input == "" or skills_input == "":
-            st.error("Profile and skills fields cannot be blank")
+        if profile_input == "" or skills_input == "" or job_role == "":
+            st.error("Profile, skills, and desired job role fields cannot be blank")
         else:
             st.session_state['profile_input'] = profile_input
             st.session_state['skills_list'] = [skill.strip() for skill in skills_input.split(",") if skill.strip()]
-            st.session_state['job_role'] = job_role
-            st.experimental_rerun()
+            st.session_state['desired_job_role'] = job_role
+            st.rerun()
 
-# Step 2: Ask user to rate the skills
-if st.session_state.get('skills_list'):
-    st.subheader("Rate your skills from 1 to 10")
-    form_ratings = st.form(key="user_ratings")
-    skills_ratings = {}
+# Step 2: Show skill gap analysis and personalized recommendations
+if st.session_state.get('skills_list') and st.session_state.get('desired_job_role'):
+    st.subheader(f"Skill Gap Analysis for {st.session_state['desired_job_role']}")
 
-    for skill in st.session_state['skills_list']:
-        skills_ratings[skill] = form_ratings.slider(f"{skill}", 1, 10, 5, key=f"{skill}_rating")
+    # Step 3: Get required skills for the desired job role
+    required_skills = extract_required_skills(st.session_state['desired_job_role'])
+    st.write(f"Required skills for {st.session_state['desired_job_role']}: {', '.join(required_skills)}")
 
-    submit_ratings = form_ratings.form_submit_button("Evaluate Profile")
+    # Step 4: Perform skill gap analysis
+    missing_skills = identify_skill_gaps(st.session_state['skills_list'], required_skills)
+    st.subheader("🔍 Skill Gaps")
+    if missing_skills:
+        st.write(f"You are missing the following skills: {', '.join(missing_skills)}")
 
-    if submit_ratings:
-        my_bar = st.progress(0.05)
+        # Step 5: Recommend personalized courses
+        st.subheader("📚 Personalized Course Recommendations")
+        courses = recommend_personalized_courses(missing_skills)
+        for i, course in enumerate(courses[:5]):
+            st.write(f"{i+1}. {course}")
+    else:
+        st.write("You have all the required skills for this role!")
 
-        # Step 3: Find skill gaps
-        missing_skills, skill_gaps = find_skill_gaps(skills_ratings, st.session_state['job_role'])
-        st.subheader(f"🔍 Skill Gaps for {st.session_state['job_role']}")
-        if skill_gaps:
-            st.write("The following skills need improvement or are missing:")
-            for skill, (current, required) in skill_gaps.items():
-                st.write(f"{skill}: Current Level: {current}/10, Required: {required}/10")
-        else:
-            st.write("No skill gaps found. You're ready for this role!")
-
-        # Step 4: Recommend courses
-        if missing_skills:
-            st.subheader("📚 Personalized Course Recommendations")
-            courses = recommend_courses(missing_skills)
-            for i, course in enumerate(courses[:5]):
-                st.write(f"{i+1}. {course}")
-
-        # Step 5: Recommend jobs
-        st.subheader("💼 Recommended Jobs Based on Profile")
-        jobs = recommend_jobs(st.session_state['profile_input'])
-        for i, job in enumerate(jobs[:5]):
-            st.write(f"{i+1}. {job}")
-        
-        my_bar.progress(1.0)
