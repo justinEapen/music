@@ -4,7 +4,7 @@ import PyPDF2
 from docx import Document
 
 # Initialize Cohere client
-co = cohere.Client('18V1Oo06GAf0xMaXbBjkHlhdHktqbjc5tusZHZMV')
+co = cohere.Client('pKRARWsDmOoq2l7MMS01RDbrHQbPrD0nWXwsswUf')
 
 # Function to extract text from PDF
 def extract_text_from_pdf(file):
