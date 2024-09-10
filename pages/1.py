@@ -118,7 +118,7 @@ if resume_upload:
         if 'skills_list' not in st.session_state:
             st.session_state['skills_list'] = extract_skills_from_resume(resume_text)
             st.session_state['profile_input'] = "Resume-based profile"
-            st.experimental_rerun()  # Only rerun if the session state was modified
+            st.rerun()  # Only rerun if the session state was modified
 
 # If resume is not uploaded or skills are still empty, show manual profile input form
 if not st.session_state.get('profile_input') and not st.session_state.get('skills_list'):
@@ -135,7 +135,7 @@ if not st.session_state.get('profile_input') and not st.session_state.get('skill
         else:
             st.session_state['profile_input'] = profile_input
             st.session_state['skills_list'] = [skill.strip() for skill in skills_input.split(",") if skill.strip()]
-            st.experimental_rerun()
+            st.rerun()
 
 # Step 2: Ask user to rate the skills (if skills are provided)
 if st.session_state.get('skills_list'):
