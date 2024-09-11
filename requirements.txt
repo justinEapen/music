@@ -7,3 +7,6 @@ streamlit
 PyPDF2
 python-docx
 matplotlib
+fpdf
+PIL
+io
