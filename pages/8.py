@@ -27,12 +27,36 @@ def generate_questions(skill):
     questions_text = response.generations[0].text.strip()
     return questions_text
 
+# Function to get recommendations based on score
+def get_recommendations(skill, score_percentage):
+    prompt = f"""
+    Based on the user's performance (score: {score_percentage}%) in the test for the skill '{skill}', recommend some courses and job roles that can help improve their skills. Provide the recommendations in the following format:
+    
+    Courses:
+    1. [Course 1]
+    2. [Course 2]
+    3. [Course 3]
+
+    Job Roles:
+    1. [Job Role 1]
+    2. [Job Role 2]
+    3. [Job Role 3]
+    """
+    
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=500,
+        temperature=0.7,
+    )
+    
+    recommendations_text = response.generations[0].text.strip()
+    return recommendations_text
+
 # Function to parse questions
 def parse_questions(questions_text):
     questions_list = []
-    
-    # Split by new line or bullet points
-    question_blocks = re.split(r'\n(?=\d+\.)', questions_text)
+    question_blocks = questions_text.split('\n\n')
     
     for block in question_blocks:
         question_match = re.search(r'Question:\s*(.*)', block)
@@ -49,50 +73,8 @@ def parse_questions(questions_text):
                 'options': options,
                 'answer': answer
             })
-        else:
-            st.error(f"Error parsing question block: {block}")
     
     return questions_list
-
-# Function to recommend courses based on score
-def recommend_courses(skill, score):
-    level = 'beginner' if score < 50 else 'intermediate' if score < 80 else 'advanced'
-    prompt = f"""
-    Recommend online courses for the following skill based on the user's performance level.
-
-    Skill: {skill}
-    Performance Level: {level}
-    Courses: """
-    
-    response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=prompt,
-        max_tokens=150,
-        temperature=0.7,
-    )
-    
-    courses_text = response.generations[0].text.strip()
-    return courses_text.split(',')
-
-# Function to recommend jobs based on score
-def recommend_jobs(skill, score):
-    level = 'entry-level' if score < 50 else 'mid-level' if score < 80 else 'senior-level'
-    prompt = f"""
-    Based on the following skill and the user's performance level, recommend job titles that are suitable.
-
-    Skill: {skill}
-    Performance Level: {level}
-    Recommended Jobs: """
-    
-    response = co.generate(
-        model='command-xlarge-nightly',
-        prompt=prompt,
-        max_tokens=150,
-        temperature=0.7,
-    )
-    
-    jobs_text = response.generations[0].text.strip()
-    return jobs_text.split(',')
 
 # Function to display the test
 def display_test(skill):
@@ -116,34 +98,28 @@ def display_test(skill):
         if st.button("Submit Test"):
             correct_answers = 0
             for i, q in enumerate(questions_list):
-                selected_answer = answers[i]
-                if selected_answer == q['answer']:
+                if answers[i] == q['answer']:
                     correct_answers += 1
             
             total_questions = len(questions_list)
-            score = (correct_answers / total_questions) * 100
+            score_percentage = (correct_answers / total_questions) * 100
             st.write(f"You answered {correct_answers} out of {total_questions} questions correctly.")
             
-            if score >= 80:
+            if correct_answers == total_questions:
                 st.success("Congratulations! You passed the test.")
                 st.write(generate_certificate(f"Certified {skill} Specialist"))
                 st.image("path_to_certificate_image.png")  # Replace with the actual path to a certificate image
                 st.write("Share your achievement on LinkedIn:")
                 linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?url={st.secrets['app_url']}&title=I%20earned%20the%20Certified%20{skill}%20Specialist%20certificate!"
                 st.markdown(f"[Share on LinkedIn]({linkedin_share_url})", unsafe_allow_html=True)
-                
-                # Recommend courses and jobs
-                st.subheader("📚 Recommended Courses")
-                courses = recommend_courses(skill, score)
-                for i, course in enumerate(courses[:5]):
-                    st.write(f"{i+1}. {course}")
-                
-                st.subheader("💼 Recommended Jobs")
-                jobs = recommend_jobs(skill, score)
-                for i, job in enumerate(jobs[:5]):
-                    st.write(f"{i+1}. {job}")
             else:
                 st.warning("You did not pass the test. Keep learning and try again!")
+            
+            # Get recommendations based on score
+            recommendations = get_recommendations(skill, score_percentage)
+            st.write("Here are some recommendations to improve your skills:")
+            st.write(recommendations)
+            
     else:
         st.error("No questions available for this skill.")
 
