@@ -31,7 +31,7 @@ def extract_text_from_docx(file):
         st.error(f"Error reading DOCX file: {e}")
     return text
 
-# Function to extract skills from resume using the correct API method
+# Function to extract skills from resume
 def extract_skills_from_resume(resume_text):
     prompt = f"""
     Extract skills from the following resume text.
@@ -48,7 +48,7 @@ def extract_skills_from_resume(resume_text):
   
     return response.generations[0].text.replace("Skills: ", "").split(',')
 
-# Functions to find skill gaps, recommend courses, and recommend jobs
+# Functions for finding skill gaps, recommending courses, and jobs
 def find_skill_gaps(profile_summary, skills_ratings):
     prompt = f"""
     Given the candidate's profile and the skills they rated, find the skills they need to improve and recommend additional skills.
@@ -98,7 +98,7 @@ def recommend_jobs(profile_summary):
   
     return response.generations[0].text.replace("Recommended Jobs: ", "").split(',')
 
-# Function to compare user's skills against required skills for a job role
+# Function to compare skills with job role
 def compare_skills_with_job_role(user_skills, job_role):
     prompt = f"""
     Based on the job role '{job_role}', list the key skills required for the role.
@@ -156,8 +156,8 @@ def collect_course_feedback():
 # Create a function to plot skill ratings
 def plot_skill_ratings(skills_ratings):
     df = pd.DataFrame(list(skills_ratings.items()), columns=['Skill', 'Rating'])
-    fig, ax = plt.subplots()
-    df.plot(kind='bar', x='Skill', y='Rating', ax=ax, legend=False)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    df.plot(kind='bar', x='Skill', y='Rating', ax=ax, color='skyblue', legend=False)
     plt.xlabel('Skill')
     plt.ylabel('Rating')
     plt.title('Skill Ratings')
@@ -170,36 +170,56 @@ def plot_skill_ratings(skills_ratings):
     
     return buf
 
-# Add some CSS for custom styling
+# Custom CSS for enhanced styling
 st.markdown("""
     <style>
         .main {
-            background-color: #f0f2f6;
+            background-color: #f8f9fa;
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 8px;
         }
         .title {
-            color: #4B4B4B;
+            color: #007bff;
+            font-size: 36px;
         }
         .section-title {
-            color: #2E86C1;
+            color: #0056b3;
+            font-size: 24px;
+            margin-top: 20px;
         }
         .subheader {
-            color: #1F618D;
+            color: #003d79;
+            font-size: 20px;
+            margin-top: 20px;
+        }
+        .stButton>button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        .stButton>button:hover {
+            background-color: #0056b3;
+        }
+        .footer {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+            font-size: 14px;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Step 1: Get user's profile, skills, or resume
+# Main Page Layout
 st.title("💼 Candidate Profile Evaluator", anchor="title")
 
 # Add a logo or image
-st.image('https://via.placeholder.com/300x100.png?text=Logo', use_column_width=True)
+st.image('https://via.placeholder.com/800x150.png?text=Candidate+Profile+Evaluator', use_column_width=True)
 
-# Allow user to upload resume
+# Resume Upload
+st.subheader("Upload Your Resume", anchor="section-title")
 resume_upload = st.file_uploader("Upload your resume (PDF or DOCX)", type=['pdf', 'docx'])
 
-# Function to read uploaded resume and extract text
 def read_resume(uploaded_file):
     if uploaded_file is not None:
         if uploaded_file.type == "application/pdf":
@@ -208,18 +228,17 @@ def read_resume(uploaded_file):
             return extract_text_from_docx(uploaded_file)
     return ""
 
-# If resume is uploaded, extract skills
 if resume_upload:
     resume_text = read_resume(resume_upload)
     if resume_text:
-        # Extract skills from resume using Cohere
         if 'skills_list' not in st.session_state:
             st.session_state['skills_list'] = extract_skills_from_resume(resume_text)
             st.session_state['profile_input'] = "Resume-based profile"
-            st.rerun()  # Only rerun if the session state was modified
+            st.rerun()
 
-# If resume is not uploaded or skills are still empty, show manual profile input form
+# Manual Profile Input
 if not st.session_state.get('profile_input') and not st.session_state.get('skills_list'):
+    st.subheader("Manual Profile Input", anchor="section-title")
     form_profile = st.form(key="user_profile")
     with form_profile:
         profile_input = st.text_input("Briefly describe your profile (e.g., Software Engineer with 3 years of experience)", key="profile_input_input")
@@ -235,9 +254,9 @@ if not st.session_state.get('profile_input') and not st.session_state.get('skill
             st.session_state['skills_list'] = [skill.strip() for skill in skills_input.split(",") if skill.strip()]
             st.rerun()
 
-# Step 2: Ask user to rate the skills (if skills are provided)
+# Skill Rating
 if st.session_state.get('skills_list'):
-    st.subheader("Rate your skills from 1 to 10", anchor="section-title")
+    st.subheader("Rate Your Skills", anchor="section-title")
 
     form_ratings = st.form(key="user_ratings")
     skills_ratings = {}
@@ -250,12 +269,12 @@ if st.session_state.get('skills_list'):
     if submit_ratings:
         my_bar = st.progress(0.05)
 
-        # Plot skill ratings
-        st.subheader("📊 Skill Ratings", anchor="subheader")
-        img_buf = plot_skill_ratings(skills_ratings)
-        st.image(img_buf)
-
-                # Step 3: Find skill gaps
+        # Display skill ratings
+        st.subheader("📊 Skill Ratings", anchor="section-title")
+        buf = plot_skill_ratings(skills_ratings)
+        st.image(buf, use_column_width=True)
+        
+        # Find skill gaps
         missing_skills = find_skill_gaps(st.session_state['profile_input'], skills_ratings)
         st.subheader("🔍 Skill Gaps and Suggested Improvements", anchor="section-title")
         
@@ -289,7 +308,7 @@ if st.session_state.get('skills_list'):
         # Collect course feedback
         collect_course_feedback()
 
-# Step 4: Compare user's skills with job role
+# Compare skills with job role
 st.subheader("🔎 Compare Skills with Job Role", anchor="section-title")
 job_role = st.text_input("Enter a job role to compare with your skills (e.g., Data Scientist)", key="job_role")
 
@@ -315,9 +334,7 @@ if job_role:
 
 # Add a footer
 st.markdown("""
-    <footer>
-        <p style="text-align: center; color: #8C8C8C;">Created with ❤️</p>
+    <footer class="footer">
+        <p>Created with ❤️ by Andrea</p>
     </footer>
 """, unsafe_allow_html=True)
-
-        
