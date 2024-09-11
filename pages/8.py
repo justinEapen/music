@@ -30,6 +30,8 @@ def generate_questions(skill):
 # Function to parse questions
 def parse_questions(questions_text):
     questions_list = []
+    
+    # Split by new line or bullet points
     question_blocks = re.split(r'\n(?=\d+\.)', questions_text)
     
     for block in question_blocks:
