@@ -1,18 +1,26 @@
 import cohere
 import streamlit as st
-import random
+import re
 
 # Initialize Cohere client
 co = cohere.Client('GHyObF1CtNtzlgdHzrpdnXVq8lZRjporWOnGWo3Y')
 
 # Function to generate questions using Cohere
 def generate_questions(skill):
-    prompt = f"Generate a set of multiple-choice questions for the following skill. Include the question, four options, and the correct answer.\n\nSkill: {skill}\nQuestions and Answers: "
+    prompt = f"""
+    Generate a set of multiple-choice questions (MCQs) for the following skill. Each question should have four options and the correct answer. Provide the questions in the following format:
+    Question: [Question text]
+    Options: [Option1, Option2, Option3, Option4]
+    Answer: [Correct Option]
+    
+    Skill: {skill}
+    Questions and Answers:
+    """
     
     response = co.generate(
         model='command-xlarge-nightly',
         prompt=prompt,
-        max_tokens=300,
+        max_tokens=500,
         temperature=0.7,
     )
     
@@ -22,14 +30,24 @@ def generate_questions(skill):
 # Function to parse questions
 def parse_questions(questions_text):
     questions_list = []
-    for item in questions_text.split('\n'):
-        if 'Question' in item:
-            parts = item.split('|')
-            if len(parts) == 3:
-                question = parts[0].replace('Question:', '').strip()
-                options = [option.strip() for option in parts[1].split(',')]
-                answer = parts[2].replace('Answer:', '').strip()
-                questions_list.append({'question': question, 'options': options, 'answer': answer})
+    question_blocks = questions_text.split('\n\n')
+    
+    for block in question_blocks:
+        question_match = re.search(r'Question:\s*(.*)', block)
+        options_match = re.search(r'Options:\s*\[(.*)\]', block)
+        answer_match = re.search(r'Answer:\s*(.*)', block)
+        
+        if question_match and options_match and answer_match:
+            question = question_match.group(1).strip()
+            options = [option.strip() for option in options_match.group(1).split(',')]
+            answer = answer_match.group(1).strip()
+            
+            questions_list.append({
+                'question': question,
+                'options': options,
+                'answer': answer
+            })
+    
     return questions_list
 
 # Function to display the test
