@@ -30,7 +30,7 @@ def generate_questions(skill):
 # Function to parse questions
 def parse_questions(questions_text):
     questions_list = []
-    question_blocks = questions_text.split('\n\n')
+    question_blocks = re.split(r'\n(?=\d+\.)', questions_text)
     
     for block in question_blocks:
         question_match = re.search(r'Question:\s*(.*)', block)
@@ -98,7 +98,6 @@ def display_test(skill):
     
     # Generate questions using Cohere
     questions_text = generate_questions(skill)
-    st.write(f"Generated Questions: {questions_text}")  # Debugging line
     questions_list = parse_questions(questions_text)
     
     if questions_list:
@@ -115,10 +114,8 @@ def display_test(skill):
         if st.button("Submit Test"):
             correct_answers = 0
             for i, q in enumerate(questions_list):
-                st.write(f"Question: {q['question']}")  # Debugging line
-                st.write(f"Selected Answer: {answers[i]}")  # Debugging line
-                st.write(f"Correct Answer: {q['answer']}")  # Debugging line
-                if answers[i] == q['answer']:
+                selected_answer = answers[i]
+                if selected_answer == q['answer']:
                     correct_answers += 1
             
             total_questions = len(questions_list)
