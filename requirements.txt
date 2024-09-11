@@ -8,6 +8,5 @@ PyPDF2
 python-docx
 matplotlib
 pillow
-PIL
 io
 fpdf2
