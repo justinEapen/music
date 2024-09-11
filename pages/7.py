@@ -1,0 +1,323 @@
+import cohere
+import streamlit as st
+import PyPDF2
+from docx import Document
+import matplotlib.pyplot as plt
+import pandas as pd
+import io
+
+# Initialize Cohere client
+co = cohere.Client('GHyObF1CtNtzlgdHzrpdnXVq8lZRjporWOnGWo3Y')
+
+# Function to extract text from PDF
+def extract_text_from_pdf(file):
+    text = ""
+    try:
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            text += page.extract_text()
+    except Exception as e:
+        st.error(f"Error reading PDF file: {e}")
+    return text
+
+# Function to extract text from DOCX
+def extract_text_from_docx(file):
+    text = ""
+    try:
+        doc = Document(file)
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+    except Exception as e:
+        st.error(f"Error reading DOCX file: {e}")
+    return text
+
+# Function to extract skills from resume using the correct API method
+def extract_skills_from_resume(resume_text):
+    prompt = f"""
+    Extract skills from the following resume text.
+
+    Resume: {resume_text}
+    Skills: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=100,
+        temperature=0.7,
+    )
+  
+    return response.generations[0].text.replace("Skills: ", "").split(',')
+
+# Functions to find skill gaps, recommend courses, and recommend jobs
+def find_skill_gaps(profile_summary, skills_ratings):
+    prompt = f"""
+    Given the candidate's profile and the skills they rated, find the skills they need to improve and recommend additional skills.
+
+    Profile: {profile_summary}
+    Skills Ratings: {', '.join([f"{skill} ({rating}/10)" for skill, rating in skills_ratings.items()])}
+    Suggested Improvements: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=150,
+        temperature=0.7
+    )
+  
+    return response.generations[0].text.replace("Suggested Improvements: ", "").split(',')
+
+def recommend_courses(missing_skills):
+    prompt = f"""
+    Recommend online courses for the following skills.
+
+    Skills: {', '.join(missing_skills)}
+    Courses: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=150,
+        temperature=0.7
+    )
+  
+    return response.generations[0].text.replace("Courses: ", "").split(',')
+
+def recommend_jobs(profile_summary):
+    prompt = f"""
+    Based on the candidate's profile, recommend job titles they should consider.
+
+    Profile: {profile_summary}
+    Recommended Jobs: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=100,
+        temperature=0.7
+    )
+  
+    return response.generations[0].text.replace("Recommended Jobs: ", "").split(',')
+
+# Function to compare user's skills against required skills for a job role
+def compare_skills_with_job_role(user_skills, job_role):
+    prompt = f"""
+    Based on the job role '{job_role}', list the key skills required for the role.
+    
+    Job Role: {job_role}
+    Required Skills: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=150,
+        temperature=0.7
+    )
+  
+    required_skills = response.generations[0].text.replace("Required Skills: ", "").split(',')
+    
+    missing_skills = [skill.strip() for skill in required_skills if skill.strip() not in user_skills]
+    return missing_skills, required_skills
+
+# Function to recommend adaptive learning pathways
+def recommend_adaptive_learning_pathway(missing_skills, user_feedback):
+    prompt = f"""
+    Based on the following skills that the user needs to improve, and their feedback on previous courses, recommend a personalized learning pathway including a mix of micro-courses, webinars, and hands-on projects.
+
+    Missing Skills: {', '.join(missing_skills)}
+    User Feedback: {user_feedback}
+    Recommended Learning Pathway: """
+
+    response = co.generate(
+        model='command-xlarge-nightly',
+        prompt=prompt,
+        max_tokens=200,
+        temperature=0.7
+    )
+  
+    return response.generations[0].text.replace("Recommended Learning Pathway: ", "").split('\n')
+
+# Function to collect feedback on completed courses
+def collect_course_feedback():
+    st.subheader("📊 Course Feedback")
+    feedback_form = st.form(key="course_feedback_form")
+    
+    with feedback_form:
+        feedback_input = st.text_area("Provide your feedback on the recommended courses (e.g., Did it help you? Was it too advanced or too basic?)", key="feedback_input")
+        submit_feedback = feedback_form.form_submit_button("Submit Feedback")
+    
+    if submit_feedback:
+        if feedback_input == "":
+            st.error("Feedback cannot be blank")
+        else:
+            st.session_state['course_feedback'] = feedback_input
+            st.success("Thank you for your feedback!")
+            st.rerun()
+
+# Create a function to plot skill ratings
+def plot_skill_ratings(skills_ratings):
+    df = pd.DataFrame(list(skills_ratings.items()), columns=['Skill', 'Rating'])
+    fig, ax = plt.subplots()
+    df.plot(kind='bar', x='Skill', y='Rating', ax=ax, legend=False)
+    plt.xlabel('Skill')
+    plt.ylabel('Rating')
+    plt.title('Skill Ratings')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    
+    return buf
+
+# Add some CSS for custom styling
+st.markdown("""
+    <style>
+        .main {
+            background-color: #f0f2f6;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .title {
+            color: #4B4B4B;
+        }
+        .section-title {
+            color: #2E86C1;
+        }
+        .subheader {
+            color: #1F618D;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Step 1: Get user's profile, skills, or resume
+st.title("💼 Candidate Profile Evaluator", anchor="title")
+
+# Add a logo or image
+st.image('https://via.placeholder.com/300x100.png?text=Logo', use_column_width=True)
+
+# Allow user to upload resume
+resume_upload = st.file_uploader("Upload your resume (PDF or DOCX)", type=['pdf', 'docx'])
+
+# Function to read uploaded resume and extract text
+def read_resume(uploaded_file):
+    if uploaded_file is not None:
+        if uploaded_file.type == "application/pdf":
+            return extract_text_from_pdf(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            return extract_text_from_docx(uploaded_file)
+    return ""
+
+# If resume is uploaded, extract skills
+if resume_upload:
+    resume_text = read_resume(resume_upload)
+    if resume_text:
+        # Extract skills from resume using Cohere
+        if 'skills_list' not in st.session_state:
+            st.session_state['skills_list'] = extract_skills_from_resume(resume_text)
+            st.session_state['profile_input'] = "Resume-based profile"
+            st.rerun()  # Only rerun if the session state was modified
+
+# If resume is not uploaded or skills are still empty, show manual profile input form
+if not st.session_state.get('profile_input') and not st.session_state.get('skills_list'):
+    form_profile = st.form(key="user_profile")
+    with form_profile:
+        profile_input = st.text_input("Briefly describe your profile (e.g., Software Engineer with 3 years of experience)", key="profile_input_input")
+        skills_input = st.text_input("List your skills (comma-separated)", key="skills_input")
+        
+        submit_profile = form_profile.form_submit_button("Submit Profile and Skills")
+
+    if submit_profile:
+        if profile_input == "" or skills_input == "":
+            st.error("Profile and skills fields cannot be blank")
+        else:
+            st.session_state['profile_input'] = profile_input
+            st.session_state['skills_list'] = [skill.strip() for skill in skills_input.split(",") if skill.strip()]
+            st.rerun()
+
+# Step 2: Ask user to rate the skills (if skills are provided)
+if st.session_state.get('skills_list'):
+    st.subheader("Rate your skills from 1 to 10", anchor="section-title")
+
+    form_ratings = st.form(key="user_ratings")
+    skills_ratings = {}
+    
+    for skill in st.session_state['skills_list']:
+        skills_ratings[skill] = form_ratings.slider(f"{skill}", 1, 10, 5, key=f"{skill}_rating")
+    
+    submit_ratings = form_ratings.form_submit_button("Evaluate Profile")
+
+    if submit_ratings:
+        my_bar = st.progress(0.05)
+
+        # Plot skill ratings
+        st.subheader("📊 Skill Ratings", anchor="subheader")
+        img_buf = plot_skill_ratings(skills_ratings)
+        st.image(img_buf)
+
+                # Step 3: Find skill gaps
+        missing_skills = find_skill_gaps(st.session_state['profile_input'], skills_ratings)
+        st.subheader("🔍 Skill Gaps and Suggested Improvements", anchor="section-title")
+        
+        if missing_skills:
+            st.write("The following skills need improvement or could be learned additionally:")
+            st.write(", ".join([skill.strip() for skill in missing_skills if skill.strip()]))
+        else:
+            st.write("No significant skill gaps identified.")
+
+        # Recommend courses
+        if missing_skills:
+            recommended_courses = recommend_courses(missing_skills)
+            st.subheader("📚 Recommended Courses", anchor="section-title")
+            if recommended_courses:
+                st.write("Here are some courses to help you improve your skills:")
+                for course in recommended_courses:
+                    st.write(f"- {course.strip()}")
+            else:
+                st.write("No course recommendations found.")
+
+        # Recommend jobs
+        recommended_jobs = recommend_jobs(st.session_state['profile_input'])
+        st.subheader("💼 Recommended Job Titles", anchor="section-title")
+        if recommended_jobs:
+            st.write("Based on your profile, consider these job titles:")
+            for job in recommended_jobs:
+                st.write(f"- {job.strip()}")
+        else:
+            st.write("No job recommendations found.")
+
+        # Collect course feedback
+        collect_course_feedback()
+
+# Step 4: Compare user's skills with job role
+st.subheader("🔎 Compare Skills with Job Role", anchor="section-title")
+job_role = st.text_input("Enter a job role to compare with your skills (e.g., Data Scientist)", key="job_role")
+
+if job_role:
+    if 'skills_list' in st.session_state:
+        missing_skills, required_skills = compare_skills_with_job_role(st.session_state['skills_list'], job_role)
+        st.write(f"**Required Skills for {job_role}:**")
+        st.write(", ".join(required_skills))
+        
+        st.write(f"**Missing Skills for {job_role}:**")
+        st.write(", ".join(missing_skills))
+        
+        # Provide adaptive learning pathways
+        if missing_skills:
+            user_feedback = st.session_state.get('course_feedback', '')
+            learning_pathway = recommend_adaptive_learning_pathway(missing_skills, user_feedback)
+            st.subheader("🛤️ Adaptive Learning Pathways", anchor="section-title")
+            st.write("Here is a personalized learning pathway for you:")
+            for pathway in learning_pathway:
+                st.write(f"- {pathway.strip()}")
+        else:
+            st.write("You have the required skills for this job role.")
+
+# Add a footer
+st.markdown("""
+    <footer>
+        <p style="text-align: center; color: #8C8C8C;">Created with ❤️</p>
+    </footer>
+""", unsafe_allow_html=True)
+
+        
